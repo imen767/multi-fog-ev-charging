@@ -1,0 +1,4 @@
+station_id,longitude,latitude,slow_count,fast_count,charge_count,TAZID,fog_id
+91001,10.1,36.8,2,0,2,TEST_A,fog-a
+92001,10.2,36.8,1,0,1,TEST_B,fog-b
+93001,10.3,36.8,3,0,3,TEST_C,fog-c

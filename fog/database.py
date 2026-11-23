@@ -1,0 +1,184 @@
+
+import sqlite3
+
+from fog.settings import DB_PATH, DATA_DIR
+
+
+def init_db():
+    """
+    Initialize the local database of the current Fog.
+
+    Each Fog owns its stations, piles and reservations.
+    Historical station and pile information is imported
+    separately from the UrbanEV dataset.
+    """
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(DB_PATH) as connection:
+
+        connection.execute("PRAGMA foreign_keys = ON")
+
+        # Detect and remove the previous synthetic schema.
+        # The original databases have already been backed up.
+        existing_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(stations)"
+            ).fetchall()
+        }
+
+        if existing_columns and "zone" in existing_columns:
+            connection.execute("DROP TABLE IF EXISTS reservations")
+            connection.execute("DROP TABLE IF EXISTS piles")
+            connection.execute("DROP TABLE IF EXISTS stations")
+
+        # Static geographical information about charging stations.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS stations (
+                station_id TEXT PRIMARY KEY,
+                longitude REAL NOT NULL,
+                latitude REAL NOT NULL,
+                slow_count INTEGER NOT NULL DEFAULT 0,
+                fast_count INTEGER NOT NULL DEFAULT 0,
+                charge_count INTEGER NOT NULL DEFAULT 0,
+                tazid TEXT,
+                fog_id TEXT NOT NULL
+            )
+        """)
+
+        # Individual charging piles belonging to a station.
+        # Status is simulated; it is not provided by UrbanEV.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS piles (
+                pile_id TEXT PRIMARY KEY,
+                station_id TEXT NOT NULL,
+                power_kw REAL NOT NULL CHECK (power_kw >= 0),
+                pile_type TEXT NOT NULL CHECK (
+                    pile_type IN ('AC', 'DC')
+                ),
+                status TEXT NOT NULL DEFAULT 'AVAILABLE'
+                    CHECK (
+                        status IN (
+                            'AVAILABLE',
+                            'OCCUPIED',
+                            'OUT_OF_SERVICE'
+                        )
+                    ),
+                is_reservable INTEGER NOT NULL DEFAULT 1
+                    CHECK (is_reservable IN (0, 1)),
+                FOREIGN KEY (station_id)
+                    REFERENCES stations(station_id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Reservations target individual piles, not whole stations.
+        # Lifecycle V7: HOLD -> CONFIRMED -> ACTIVE -> COMPLETED (or CANCELLED / EXPIRED).
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS reservations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hold_id TEXT NOT NULL,
+                request_id TEXT NOT NULL,
+                origin_fog TEXT NOT NULL,
+                pile_id TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN (
+                        'HOLD',
+                        'CONFIRMED',
+                        'ACTIVE',
+                        'COMPLETED',
+                        'CANCELLED',
+                        'EXPIRED'
+                    )
+                ),
+                expires_at TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (pile_id)
+                    REFERENCES piles(pile_id)
+            )
+        """)
+
+        # Migration helper: ensure existing reservations table supports ACTIVE and COMPLETED
+        res_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE name='reservations'"
+        ).fetchone()
+        if res_sql and "ACTIVE" not in res_sql[0]:
+            connection.execute("PRAGMA foreign_keys = OFF")
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS reservations_v7 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hold_id TEXT NOT NULL,
+                    request_id TEXT NOT NULL,
+                    origin_fog TEXT NOT NULL,
+                    pile_id TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN (
+                            'HOLD',
+                            'CONFIRMED',
+                            'ACTIVE',
+                            'COMPLETED',
+                            'CANCELLED',
+                            'EXPIRED'
+                        )
+                    ),
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (pile_id)
+                        REFERENCES piles(pile_id)
+                )
+            """)
+            connection.execute("""
+                INSERT INTO reservations_v7 (id, hold_id, request_id, origin_fog, pile_id, status, expires_at, created_at)
+                SELECT id, hold_id, request_id, origin_fog, pile_id, status, expires_at, created_at FROM reservations
+            """)
+            connection.execute("DROP TABLE reservations")
+            connection.execute("ALTER TABLE reservations_v7 RENAME TO reservations")
+            connection.execute("PRAGMA foreign_keys = ON")
+
+        # Step 35: durable per-vehicle simulation deadlines, stored by the owning Fog.
+        # Existing ACTIVE sessions are deliberately not migrated: their historical
+        # duration is unknown. Only new simulated arrivals get a due_tick.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS charging_schedules (
+                hold_id TEXT PRIMARY KEY,
+                vehicle_id TEXT NOT NULL,
+                origin_fog TEXT NOT NULL,
+                start_tick INTEGER NOT NULL CHECK (start_tick >= 1),
+                duration_ticks INTEGER NOT NULL CHECK (duration_ticks BETWEEN 1 AND 48),
+                due_tick INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (status IN ('ACTIVE', 'COMPLETED')),
+                completed_tick INTEGER,
+                CHECK (due_tick = start_tick + duration_ticks)
+            )
+        """)
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_charging_schedules_due
+            ON charging_schedules(status, due_tick)
+        """)
+
+        # One pile cannot have two active reservations or concurrent charges.
+        connection.execute("DROP INDEX IF EXISTS unique_active_pile_reservation")
+        connection.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            unique_active_pile_reservation
+            ON reservations(pile_id)
+            WHERE status IN ('HOLD', 'CONFIRMED', 'ACTIVE')
+        """)
+
+        # Useful indexes for station and pile queries.
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS
+            idx_piles_station
+            ON piles(station_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS
+            idx_piles_status
+            ON piles(status, is_reservable)
+        """)
+
+        connection.commit()

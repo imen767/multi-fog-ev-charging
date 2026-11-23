@@ -1,0 +1,11 @@
+# Etape 24 : pas de nouveau conteneur. Ajoute le ML dynamique a cloud-sync-api.
+# Utiliser AVEC compose.cloud.yml, compose.cloud.api.yml et compose.cloud.ml.yml.
+services:
+  cloud-sync-api:
+    environment:
+      CLOUD_ML_API_TOKEN: ${CLOUD_ML_API_TOKEN:?Definir CLOUD_ML_API_TOKEN dans .env.cloud}
+      CHRONOS_SERVICE_URL: http://chronos-cloud:8000
+      SIM_TICK_MINUTES: ${SIM_TICK_MINUTES:-}
+    depends_on:
+      chronos-cloud:
+        condition: service_started

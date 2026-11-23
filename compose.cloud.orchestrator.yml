@@ -1,0 +1,27 @@
+# Ajout au projet fog-cloud : cloud-orchestrator réutilise les API Fog existantes.
+services:
+  cloud-orchestrator:
+    build:
+      context: .
+      dockerfile: cloud/orchestrator_api/Dockerfile
+    environment:
+      ORCHESTRATOR_API_TOKEN: ${ORCHESTRATOR_API_TOKEN:?Ajouter ORCHESTRATOR_API_TOKEN dans .env.cloud}
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: http://fog-b:8000
+      FOG_C_URL: http://fog-c:8000
+    ports:
+      - "127.0.0.1:18081:8000"
+    networks:
+      - default
+      - fog_network
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  fog_network:
+    external: true
+    name: ${FOG_NETWORK_NAME:?Définir FOG_NETWORK_NAME dans .env.cloud}

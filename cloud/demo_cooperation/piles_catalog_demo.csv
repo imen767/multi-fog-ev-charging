@@ -1,0 +1,7 @@
+pile_id,station_id,power,pileType,fog_id
+91001001,91001,22,AC,fog-a
+91001002,91001,22,AC,fog-a
+92001001,92001,22,AC,fog-b
+93001001,93001,50,DC,fog-c
+93001002,93001,50,DC,fog-c
+93001003,93001,50,DC,fog-c

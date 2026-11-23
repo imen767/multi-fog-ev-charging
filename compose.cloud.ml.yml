@@ -1,0 +1,36 @@
+# Etape 20 — Reutilise directement ./ml-service du binome.
+# Maquette locale : rattachement au reseau des Fog pour conserver
+# le CHRONOS_URL=http://chronos-ml:8000 des Fog existants.
+services:
+  chronos-cloud:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: chronos-cloud
+    environment:
+      CHRONOS_DEVICE: cpu
+      HF_HOME: /root/.cache/huggingface
+    ports:
+      - "127.0.0.1:18082:8000"
+    volumes:
+      - chronos-cloud-cache:/root/.cache/huggingface
+    networks:
+      default:
+      fog_network:
+        aliases:
+          - chronos-ml
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  chronos-cloud-cache:
+
+networks:
+  fog_network:
+    external: true
+    name: ${FOG_NETWORK_NAME:?FOG_NETWORK_NAME doit etre defini dans .env.cloud}

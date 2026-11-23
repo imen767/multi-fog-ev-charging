@@ -1,0 +1,95 @@
+services:
+  fog-a:
+    build: .
+    container_name: fog-a
+    ports:
+      - "18001:8000"
+    environment:
+      FOG_ID: fog-a
+      FOG_ZONE: university
+      FOG_DB_PATH: /app/data/fog_a.db
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: http://fog-b:8000
+      FOG_C_URL: http://fog-c:8000
+      CHRONOS_URL: http://chronos-ml:8000
+    volumes:
+      - ./docker-data/fog-a:/app/data
+      - ./ml-service/data/fog-a.csv:/app/data/forecast.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  fog-b:
+    build: .
+    container_name: fog-b
+    ports:
+      - "18002:8000"
+    environment:
+      FOG_ID: fog-b
+      FOG_ZONE: shopping_center
+      FOG_DB_PATH: /app/data/fog_b.db
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: http://fog-b:8000
+      FOG_C_URL: http://fog-c:8000
+      CHRONOS_URL: http://chronos-ml:8000
+    volumes:
+      - ./docker-data/fog-b:/app/data
+      - ./ml-service/data/fog-b.csv:/app/data/forecast.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  fog-c:
+    build: .
+    container_name: fog-c
+    ports:
+      - "18003:8000"
+    environment:
+      FOG_ID: fog-c
+      FOG_ZONE: public_parking
+      FOG_DB_PATH: /app/data/fog_c.db
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: http://fog-b:8000
+      FOG_C_URL: http://fog-c:8000
+      CHRONOS_URL: http://chronos-ml:8000
+    volumes:
+      - ./docker-data/fog-c:/app/data
+      - ./ml-service/data/fog-c.csv:/app/data/forecast.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+  chronos-ml:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: chronos-ml
+    ports:
+      - "8000:8000"
+    environment:
+      CHRONOS_DEVICE: cpu
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - chronos-model-cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  chronos-model-cache:
+

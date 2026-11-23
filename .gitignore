@@ -1,0 +1,113 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+.venv-chronos/
+venv/
+# Environment variables
+.env
+.env.*
+# Docker runtime databases
+docker-data/
+# Local databases
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dataset original (ne pas pousser sur GitHub)
+UrbanEVDataset/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+
+# Local databases
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-journal
+
+
+# Local backups
+backup/
+
+# Frontend (React / Vite)
+node_modules/
+dist/
+
+# Logs
+*.log
+.env.cloud
+
+# Etape 38 : fichiers locaux à ne pas envoyer sur GitHub
+backup-etape*/
+fog-node-bundles/
+*.dump
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.pem
+*.key
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Bases et données persistantes
+docker-data/
+backup-etape*/
+fog-node-bundles/
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.db-wal
+*.db-shm
+
+# Environnements et dépendances
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/
+dist/
+
+# Clés privées
+*.pem
+*.key
+
+# Anciennes copies de fichiers
+*.before-*
+
+# Anciennes copies de fichiers
+*.before-*

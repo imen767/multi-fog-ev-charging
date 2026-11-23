@@ -1,0 +1,38 @@
+# Extension du Compose Cloud existant. NE remplace PAS compose.cloud.yml.
+# Chaque agent est sur le réseau Cloud ET sur le réseau des Fog (maquette 1 PC).
+x-sync-agent: &sync-agent
+  build:
+    context: ./cloud
+    dockerfile: Dockerfile.sync-agent
+  environment:
+    CLOUD_SYNC_TOKEN: ${CLOUD_SYNC_TOKEN:?CLOUD_SYNC_TOKEN absent de .env.cloud}
+  networks:
+    - default
+    - fog_network
+  depends_on:
+    cloud-sync-api:
+      condition: service_started
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  sync-fog-a:
+    <<: *sync-agent
+    command: ["--fog-id", "fog-a", "--fog-url", "http://fog-a:8000", "--cloud-url", "http://cloud-sync-api:8000", "--interval", "15"]
+
+  sync-fog-b:
+    <<: *sync-agent
+    command: ["--fog-id", "fog-b", "--fog-url", "http://fog-b:8000", "--cloud-url", "http://cloud-sync-api:8000", "--interval", "15"]
+
+  sync-fog-c:
+    <<: *sync-agent
+    command: ["--fog-id", "fog-c", "--fog-url", "http://fog-c:8000", "--cloud-url", "http://cloud-sync-api:8000", "--interval", "15"]
+
+networks:
+  fog_network:
+    external: true
+    name: ${FOG_NETWORK_NAME:?Renseigner FOG_NETWORK_NAME dans .env.cloud}

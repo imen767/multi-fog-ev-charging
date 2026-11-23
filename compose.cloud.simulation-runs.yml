@@ -1,0 +1,10 @@
+# Stable simulation identity shared by Cloud Sync API and Cloud Orchestrator.
+# Generate ONCE with: python3 cloud/setup_simulation_run.py
+services:
+  cloud-sync-api:
+    environment:
+      SIMULATION_RUN_ID: ${SIMULATION_RUN_ID:?Create SIMULATION_RUN_ID in .env.cloud}
+  cloud-orchestrator:
+    environment:
+      SIMULATION_RUN_ID: ${SIMULATION_RUN_ID:?Create SIMULATION_RUN_ID in .env.cloud}
+      CLOUD_HISTORY_STATUS_URL: http://cloud-sync-api:8000/api/v1/history/run-status

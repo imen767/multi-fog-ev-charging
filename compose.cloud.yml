@@ -1,0 +1,26 @@
+services:
+  postgres-cloud:
+    image: postgres:17
+    container_name: postgres-cloud
+
+    environment:
+      POSTGRES_DB: fog_cloud
+      POSTGRES_USER: fog_admin
+      POSTGRES_PASSWORD: ${CLOUD_DB_PASSWORD}
+
+    ports:
+      - "127.0.0.1:55432:5432"
+
+    volumes:
+      - postgres-cloud-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fog_admin -d fog_cloud"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    restart: unless-stopped
+
+volumes:
+  postgres-cloud-data:

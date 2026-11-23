@@ -1,0 +1,41 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    host: "127.0.0.1", // Passage de développement : ne pas exposer les commandes sur le LAN.
+    proxy: {
+      "/orchestrator": {
+        target: "http://127.0.0.1:18081",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/orchestrator/, ""),
+      },
+      "/api/v1/simulator": {
+        target: "http://127.0.0.1:18083",
+        changeOrigin: true,
+      },
+      "/fog-a": {
+        target: "http://127.0.0.1:18001",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fog-a/, ""),
+      },
+      "/fog-b": {
+        target: "http://127.0.0.1:18002",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fog-b/, ""),
+      },
+      "/fog-c": {
+        target: "http://127.0.0.1:18003",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fog-c/, ""),
+      },
+      "/chronos": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/chronos/, ""),
+      },
+    },
+  },
+});

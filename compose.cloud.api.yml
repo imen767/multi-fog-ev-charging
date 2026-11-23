@@ -1,0 +1,13 @@
+services:
+  cloud-sync-api:
+    build:
+      context: ./cloud/cloud_api
+    environment:
+      DATABASE_URL: postgresql://fog_admin:${CLOUD_DB_PASSWORD}@postgres-cloud:5432/fog_cloud
+      CLOUD_SYNC_TOKEN: ${CLOUD_SYNC_TOKEN}
+    ports:
+      - "127.0.0.1:18080:8000"
+    depends_on:
+      postgres-cloud:
+        condition: service_healthy
+    restart: unless-stopped

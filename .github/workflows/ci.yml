@@ -1,0 +1,72 @@
+name: CI Multi-Fog (Python + React)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Validation uniquement : aucun déploiement, aucun secret Cloud.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python - tests unitaires et API simulées
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v6
+
+      - name: Vérifier l'absence de secrets et bases suivis par Git
+        run: python3 scripts/ci_guard.py
+
+      - name: Préparer Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Installer les dépendances sans ML lourd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest \
+            -r requirements.txt \
+            -r cloud/cloud_api/requirements.txt \
+            -r cloud/orchestrator_api/requirements.txt \
+            -r cloud/dashboard_gateway/requirements.txt
+
+      - name: Exécuter les tests isolés (aucun Docker requis)
+        env:
+          PYTHONPATH: .
+        run: python -m pytest -q tests/unit cloud/tests
+
+  react:
+    name: Dashboard - tests et build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v6
+
+      - name: Préparer Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Installer les dépendances depuis package-lock.json
+        run: npm ci
+
+      - name: Exécuter les 14 contrôles du scénario S1
+        run: npm test
+
+      - name: Compiler TypeScript et Vite
+        run: npm run build

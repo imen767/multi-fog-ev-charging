@@ -1,0 +1,7 @@
+# Étape 37 : statistiques persistantes, aucune exposition de token au navigateur.
+# À superposer aux fichiers Compose habituels (Cloud, history, runs, dashboard).
+services:
+  dashboard-gateway:
+    environment:
+      CLOUD_STATS_URL: http://cloud-sync-api:8000/api/v1/history/summary
+      CLOUD_STATS_TOKEN: ${ORCHESTRATOR_API_TOKEN:?Token orchestrateur requis}

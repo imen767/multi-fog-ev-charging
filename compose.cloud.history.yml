@@ -1,0 +1,14 @@
+# Etape 23 : ajouter la capture de l'historique aux services Cloud existants.
+# A utiliser AVEC compose.cloud.yml + compose.cloud.api.yml + compose.cloud.orchestrator.yml
+services:
+  cloud-sync-api:
+    environment:
+      ORCHESTRATOR_API_TOKEN: ${ORCHESTRATOR_API_TOKEN:?Token d'orchestration manquant}
+
+  cloud-orchestrator:
+    environment:
+      CLOUD_HISTORY_URL: http://cloud-sync-api:8000/api/v1/history/round
+      CLOUD_HISTORY_TOKEN: ${ORCHESTRATOR_API_TOKEN:?Token d'orchestration manquant}
+    depends_on:
+      cloud-sync-api:
+        condition: service_started
