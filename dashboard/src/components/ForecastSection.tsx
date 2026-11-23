@@ -55,7 +55,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
   const actualTicks = currentForecast?.ticks || [];
   const chartTimeline = actualValues.map((v, i) => ({
     hour: `Tick ${actualTicks[i]}`,
-    actualOccupied: Math.round(v),
+    actualOccupied: Math.round(v) as number | null,
     predictedQ50: null as number | null,
     lowerQ10: null as number | null,
     upperQ90: null as number | null,
