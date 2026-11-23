@@ -3,6 +3,7 @@ WORKDIR /app
 COPY cloud/dashboard_gateway/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY cloud/dashboard_gateway/main.py /app/main.py
+COPY cloud/dashboard_gateway/ml_routes.py /app/ml_routes.py
 USER 65532:65532
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

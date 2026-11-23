@@ -1,0 +1,69 @@
+# Etape 40: Fault-injection on ISOLATED demo services only. NEVER affects production Fog/Cloud.
+# Use -p fog-cooperation-demo and only this file.
+x-demo-fog: &demo-fog
+  build:
+    context: .
+    dockerfile: Dockerfile
+  volumes:
+    - ./cloud/demo_cooperation/stations_catalog_demo.csv:/app/stations_catalog.csv:ro
+    - ./cloud/demo_cooperation/piles_catalog_demo.csv:/app/piles_catalog.csv:ro
+  tmpfs:
+    - /app/data:size=67108864
+  networks:
+    - demo
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+    interval: 5s
+    timeout: 3s
+    retries: 15
+    start_period: 5s
+
+services:
+  demo-fog-a:
+    <<: *demo-fog
+    environment:
+      FOG_ID: fog-a
+      FOG_ZONE: university
+      FOG_DB_PATH: /app/data/fog_a.db
+      FOG_A_URL: http://demo-fog-a:8000
+      FOG_B_URL: http://demo-fog-b:8000
+      FOG_C_URL: http://demo-fog-c:8000
+    ports: ["127.0.0.1:18201:8000"]
+  demo-fog-b:
+    <<: *demo-fog
+    environment:
+      FOG_ID: fog-b
+      FOG_ZONE: shopping_center
+      FOG_DB_PATH: /app/data/fog_b.db
+      FOG_A_URL: http://demo-fog-a:8000
+      FOG_B_URL: http://demo-fog-b:8000
+      FOG_C_URL: http://demo-fog-c:8000
+    ports: ["127.0.0.1:18202:8000"]
+  demo-fog-c:
+    <<: *demo-fog
+    environment:
+      FOG_ID: fog-c
+      FOG_ZONE: public_parking
+      FOG_DB_PATH: /app/data/fog_c.db
+      FOG_A_URL: http://demo-fog-a:8000
+      FOG_B_URL: http://demo-fog-b:8000
+      FOG_C_URL: http://demo-fog-c:8000
+    ports: ["127.0.0.1:18203:8000"]
+  demo-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["runner"]
+    networks:
+      - demo
+    volumes:
+      - ./cloud/demo_cooperation/run_demo.py:/app/run_demo.py:ro
+    depends_on:
+      demo-fog-a: {condition: service_healthy}
+      demo-fog-b: {condition: service_healthy}
+      demo-fog-c: {condition: service_healthy}
+    entrypoint: ["python", "/app/run_demo.py"]
+
+networks:
+  demo:
+    internal: false

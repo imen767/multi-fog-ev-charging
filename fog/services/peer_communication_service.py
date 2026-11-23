@@ -21,6 +21,7 @@ def send_help_request_to_peers(request):
     responses = []
     errors = []
     hold_result = None
+    trace = []  # Observations d'appels HTTP réels (aucune simulation de messages).
 
     request_data = request.model_dump()
 
@@ -32,6 +33,8 @@ def send_help_request_to_peers(request):
 
         endpoint = f"{peer_url}/api/v1/cooperation/help-requests"
 
+        trace.append({"stage": "HELP_REQUEST", "from_fog": FOG_ID, "to_fog": peer_fog,
+                      "method": "POST", "path": "/api/v1/cooperation/help-requests", "result": "SENT"})
         try:
             response = httpx.post(
                 endpoint,
@@ -39,7 +42,14 @@ def send_help_request_to_peers(request):
                 timeout=5.0
             )
             response.raise_for_status()
-            responses.append(response.json())
+            answer = response.json()
+            responses.append(answer)
+            trace.append({"stage": answer.get("status", "RESPONSE"), "from_fog": peer_fog,
+                          "to_fog": FOG_ID, "method": "HTTP response", "path": "/api/v1/cooperation/help-requests",
+                          "result": answer.get("status", "UNKNOWN"),
+                          "available_piles": answer.get("available_piles"),
+                          "available_power_kw": answer.get("available_power_kw"),
+                          "reason": answer.get("reason")})
 
         except httpx.HTTPError as error:
             errors.append({
@@ -47,6 +57,9 @@ def send_help_request_to_peers(request):
                 "stage": "HELP_REQUEST",
                 "error": str(error)
             })
+            trace.append({"stage": "PEER_ERROR", "from_fog": FOG_ID, "to_fog": peer_fog,
+                          "method": "POST", "path": "/api/v1/cooperation/help-requests",
+                          "result": "ERROR", "detail": type(error).__name__})
 
     # Step 2: Rank all valid proposals meeting pile and power requirements.
     ranked_proposals = rank_proposals(
@@ -55,6 +68,10 @@ def send_help_request_to_peers(request):
         required_power_kw=request.required_power_kw
     )
 
+    if ranked_proposals:
+        trace.append({"stage": "RANKING", "from_fog": FOG_ID, "to_fog": FOG_ID,
+                      "method": "LOCAL", "path": "selection-locale",
+                      "result": "RANKED", "candidates": [p["proposer_fog"] for p in ranked_proposals]})
     selected_proposal = None
     failover_count = 0
     attempted_fogs = []
@@ -82,6 +99,8 @@ def send_help_request_to_peers(request):
             "ttl_seconds": 120
         }
 
+        trace.append({"stage": "HOLD_REQUEST", "from_fog": FOG_ID, "to_fog": candidate_fog,
+                      "method": "POST", "path": "/api/v1/reservations/hold", "result": "SENT"})
         try:
             response = httpx.post(
                 hold_endpoint,
@@ -90,6 +109,10 @@ def send_help_request_to_peers(request):
             )
             response.raise_for_status()
             hold_result = response.json()
+            trace.append({"stage": "HOLD_GRANTED", "from_fog": candidate_fog, "to_fog": FOG_ID,
+                          "method": "HTTP response", "path": "/api/v1/reservations/hold",
+                          "result": hold_result.get("status", "HOLD"),
+                          "hold_id": hold_result.get("hold_id"), "pile_ids": hold_result.get("pile_ids", [])})
             selected_proposal = candidate
             failover_count = attempt_idx
             break  # Successfully acquired HOLD on this candidate
@@ -102,6 +125,9 @@ def send_help_request_to_peers(request):
             except Exception:
                 detail = str(error)
 
+            trace.append({"stage": "HOLD_FAILED", "from_fog": candidate_fog, "to_fog": FOG_ID,
+                          "method": "HTTP response", "path": "/api/v1/reservations/hold",
+                          "result": "ERROR", "status_code": status_code})
             errors.append({
                 "peer_fog": candidate_fog,
                 "stage": "HOLD",
@@ -111,6 +137,9 @@ def send_help_request_to_peers(request):
             })
 
         except httpx.HTTPError as error:
+            trace.append({"stage": "HOLD_FAILED", "from_fog": FOG_ID, "to_fog": candidate_fog,
+                          "method": "POST", "path": "/api/v1/reservations/hold",
+                          "result": "ERROR", "detail": type(error).__name__})
             errors.append({
                 "peer_fog": candidate_fog,
                 "stage": "HOLD",
@@ -137,7 +166,8 @@ def send_help_request_to_peers(request):
         "hold": hold_result,
         "failover_count": failover_count,
         "attempted_fogs": attempted_fogs,
-        "errors": errors
+        "errors": errors,
+        "trace": trace,
     }
 
 
@@ -158,8 +188,12 @@ def confirm_and_activate_remote_hold(
     if not peer_url or not hold_id or peer_id == FOG_ID:
         return {"status": "NO_HOLD", "error": "No valid remote HOLD or peer"}
 
+    trace = []
     stage = "CONFIRM"
     try:
+        trace.append({"stage": "CONFIRM_REQUEST", "from_fog": FOG_ID, "to_fog": peer_id,
+                      "method": "POST", "path": "/api/v1/reservations/confirm",
+                      "result": "SENT", "hold_id": hold_id})
         confirm = httpx.post(
             f"{peer_url}/api/v1/reservations/confirm",
             json={"hold_id": hold_id}, timeout=5.0,
@@ -167,6 +201,9 @@ def confirm_and_activate_remote_hold(
         confirm.raise_for_status()
         if confirm.json().get("status") != "CONFIRMED":
             raise ValueError("Peer did not confirm HOLD")
+        trace.append({"stage": "CONFIRMED", "from_fog": peer_id, "to_fog": FOG_ID,
+                      "method": "HTTP response", "path": "/api/v1/reservations/confirm",
+                      "result": "CONFIRMED", "hold_id": hold_id})
 
         stage = "ACTIVATE"
         activation_payload = {"hold_id": hold_id}
@@ -176,6 +213,9 @@ def confirm_and_activate_remote_hold(
                 "duration_ticks": duration_ticks,
                 "vehicle_id": vehicle_id,
             })
+        trace.append({"stage": "ACTIVATE_REQUEST", "from_fog": FOG_ID, "to_fog": peer_id,
+                      "method": "POST", "path": "/api/v1/reservations/activate",
+                      "result": "SENT", "hold_id": hold_id})
         activation = httpx.post(
             f"{peer_url}/api/v1/reservations/activate",
             json=activation_payload, timeout=5.0,
@@ -184,9 +224,12 @@ def confirm_and_activate_remote_hold(
         data = activation.json()
         if data.get("status") != "ACTIVE":
             raise ValueError("Peer did not activate HOLD")
+        trace.append({"stage": "ACTIVE", "from_fog": peer_id, "to_fog": FOG_ID,
+                      "method": "HTTP response", "path": "/api/v1/reservations/activate",
+                      "result": "ACTIVE", "hold_id": hold_id, "pile_ids": data.get("pile_ids", [])})
         return {
             "status": "ACTIVE", "destination_fog": peer_id,
-            "hold_id": hold_id, "pile_ids": data.get("pile_ids", []),
+            "hold_id": hold_id, "pile_ids": data.get("pile_ids", []), "trace": trace,
         }
     except (httpx.HTTPError, ValueError) as exc:
         # An HTTP timeout is ambiguous: the peer may have COMMITTED the
@@ -201,10 +244,14 @@ def confirm_and_activate_remote_hold(
                 cancelled.raise_for_status()
             except httpx.HTTPError:
                 pass
+        trace.append({"stage": "REQUEST_UNCERTAIN" if ambiguous else "REQUEST_FAILED",
+                      "from_fog": FOG_ID, "to_fog": peer_id, "method": "POST",
+                      "path": f"/api/v1/reservations/{stage.lower()}",
+                      "result": "UNKNOWN" if ambiguous else "FAILED", "detail": type(exc).__name__})
         return {
             "status": "UNKNOWN" if ambiguous else "FAILED",
             "destination_fog": peer_id,
             "hold_id": hold_id,
             "stage": stage,
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": f"{type(exc).__name__}: {exc}", "trace": trace,
         }

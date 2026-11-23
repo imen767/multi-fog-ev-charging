@@ -1,30 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Play,
-  Pause,
   SkipForward,
-  RotateCcw,
-  Zap,
   Activity,
-  Layers,
-  ArrowRight,
-  ShieldAlert,
-  CheckCircle,
-  AlertTriangle,
   Clock,
-  BatteryCharging,
-  Cpu,
-  Flame,
   Radio
 } from 'lucide-react';
 import {
   FogId,
   FogCapacity,
   SimulatorStatus,
-  SimulatorScenario,
   TerritoryMeta
 } from '../types';
 import { FogDataService } from '../services/api';
+import { CooperationDemoPanel } from './CooperationDemoPanel';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, BarChart, Bar } from 'recharts';
 
 interface RealTimeSimulatorProps {
@@ -96,7 +84,6 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
   const currentCapacities = status?.capacities || capacities;
   const isRunning = status?.is_running ?? false;
   const tick = status?.tick ?? 0;
-  const scenario = status?.scenario ?? 'S1_NORMAL';
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -125,21 +112,14 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
               <div>
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                    Simulateur Réseau Temps Réel
+                    Coopération & simulation Multi-Fog
                   </h2>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase inline-flex items-center gap-1.5 ${
-                      isRunning
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
-                    {isRunning ? 'Simulation Active' : 'En Pause'}
+                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase inline-flex items-center gap-1.5 bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">
+                    Mode manuel
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5">
-                  Mode manuel connecté aux véritables Fog et à l’orchestrateur. Aucune simulation JavaScript fictive.
+                  Mode principal : vrais Fog (SQLite) et orchestrateur. La démonstration de coopération ci-dessous utilise des Fog isolés.
                 </p>
               </div>
             </div>
@@ -154,27 +134,6 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
                 <div className="text-base font-black text-cyan-300">#{tick}</div>
               </div>
             </div>
-
-            {/* Play / Pause */}
-            {isRunning ? (
-              <button
-                onClick={() => undefined}
-                disabled={true}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-lg shadow-amber-500/20 cursor-pointer active:scale-95"
-              >
-                <Pause className="w-4 h-4" />
-                <span>Pause</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => undefined}
-                disabled={true}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Démarrer</span>
-              </button>
-            )}
 
             {/* Step */}
             <button
@@ -191,86 +150,17 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
               <span className="hidden sm:inline">Pas +1</span>
             </button>
 
-            {/* Reset */}
-            <button
-              onClick={() => undefined}
-              disabled={true}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl font-bold text-sm bg-white/10 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40 border border-white/15 text-slate-300 transition-all cursor-pointer active:scale-95"
-              title="Réinitialisation désactivée : données réelles persistantes"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-
-            <span className="text-xs text-cyan-200 font-medium">Mode manuel réel — lecture automatique</span>
+            <span className="text-xs text-cyan-200 font-medium">Simulation principale : mode manuel</span>
           </div>
         </div>
 
-        {/* ── Scenario Selection Bar ── */}
-        <div className="mt-8 pt-6 border-t border-white/10">
-          <div className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Scénarios historiques (désactivés tant que non raccordés)</span>
-          </div>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              {
-                id: 'S1_NORMAL' as SimulatorScenario,
-                badge: 'Scénario 1',
-                title: 'Normal (Autonome)',
-                desc: 'Flux régulier. 100% géré localement. Zéro inter-fog.',
-                color: 'emerald',
-                activeBg: 'bg-emerald-500/20 border-emerald-400 text-emerald-200',
-              },
-              {
-                id: 'S2_COOPERATION' as SimulatorScenario,
-                badge: 'Scénarios 2 à 4',
-                title: 'Coopération V7',
-                desc: 'Pic Fog B saturé ➜ HOLD ➜ CONFIRM ➜ ACTIVATE sur Fog A.',
-                color: 'amber',
-                activeBg: 'bg-amber-500/20 border-amber-400 text-amber-200',
-              },
-              {
-                id: 'S6_SATURATION' as SimulatorScenario,
-                badge: 'Scénario 6',
-                title: 'Saturation Globale',
-                desc: 'Tous Fogs à 100%. DECLINE ➜ 0 recharge fictive.',
-                color: 'rose',
-                activeBg: 'bg-rose-500/20 border-rose-400 text-rose-200',
-              },
-              {
-                id: 'S7_ML_REACTIVE' as SimulatorScenario,
-                badge: 'Scénario 7',
-                title: 'ML vs Réel',
-                desc: 'Prévision Chronos-2 sans réservation préalable ➜ Réactif.',
-                color: 'sky',
-                activeBg: 'bg-sky-500/20 border-sky-400 text-sky-200',
-              },
-            ].map((sc) => {
-              const isSelected = scenario === sc.id;
-              return (
-                <button
-                  key={sc.id}
-                  disabled={true}
-                  className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative ${
-                    isSelected
-                      ? `${sc.activeBg} shadow-lg ring-2 ring-white/20`
-                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white">
-                      {sc.badge}
-                    </span>
-                    {isSelected && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                  </div>
-                  <div className="font-bold text-sm text-white">{sc.title}</div>
-                  <div className="text-xs text-slate-400 mt-1 leading-snug">{sc.desc}</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <CooperationDemoPanel />
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+        <h3 className="text-lg font-black text-slate-900">Simulation principale — trois Fog, catalogue complet</h3>
+        <span className="text-xs text-slate-500">Commande indépendante de la démonstration isolée ci-dessus</span>
       </div>
 
       {/* ── Real-Time Metrics & Fog Gauges ── */}
@@ -468,7 +358,7 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
           <div className="flex items-center gap-2.5">
             <Activity className="w-5 h-5 text-indigo-600" />
             <h3 className="font-black text-slate-900 text-base sm:text-lg">
-              Journal des Événements & Coopération en Temps Réel
+              Journal des rounds du simulateur principal
             </h3>
           </div>
           <span className="text-xs font-bold text-slate-500">
@@ -505,7 +395,7 @@ export const RealTimeSimulator: React.FC<RealTimeSimulatorProps> = ({
           </div>
         ) : (
           <div className="text-center py-10 text-slate-600 text-sm font-medium">
-            Aucun round récent disponible. Le bouton « Pas +1 » lance un tick réel, sans générer automatiquement de nouvelles voitures.
+            Aucun round récent disponible. Les détails des messages inter-Fog apparaissent dans la démonstration dédiée plus haut.
           </div>
         )}
       </div>

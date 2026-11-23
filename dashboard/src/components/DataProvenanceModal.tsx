@@ -100,7 +100,7 @@ export const DataProvenanceModal: React.FC<DataProvenanceModalProps> = ({
             <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
               Contient <strong>1 635 stations de recharge</strong> réparties par secteur territorial avec coordonnées réelles WGS-84 et <strong>22 138 bornes</strong> avec caractéristiques nominales (AC 7 kW jusqu'à DC 360 kW).
               <br />
-              <em className="text-slate-500 font-normal">Note de transparence : La simulation dynamique des flux de véhicules temps réel par borne est programmée dans une phase ultérieure dédiée.</em>
+              <em className="text-slate-500 font-normal">Note de transparence : les coordonnées et puissances nominales restent des métadonnées du catalogue ; les compteurs de bornes disponibles par station proviennent désormais de l’API SQLite des Fog. Le classement est calculé dans React par zone (pas exécuté dans les Fog).</em>
             </p>
           </div>
 
@@ -112,11 +112,11 @@ export const DataProvenanceModal: React.FC<DataProvenanceModalProps> = ({
                 3. Modèle d'IA Amazon Chronos-2 (Prédiction Territoriale)
               </span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">
-                INFÉRENCE ML LOCALE
+                INFÉRENCE VIA SERVICE CLOUD (VERSION ACTUELLE)
               </span>
             </div>
             <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-              Chaque Fog interroge Chronos-2 avec ses propres séries temporelles historiques pour prédire l'occupation agrégée de son territoire à l'horizon +1 heure. Cette prévision reste strictement associée à son propre Fog.
+              Le Cloud lit les 12 derniers ticks de chaque Fog dans PostgreSQL puis appelle Chronos-2 à +1 tick (60 minutes simulées). La prédiction est informative : elle ne commande ni les réservations ni la coopération. L'inférence locale sur chaque PC Fog reste une évolution de déploiement.
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export const DataProvenanceModal: React.FC<DataProvenanceModalProps> = ({
               <span>Garanties DevOps & Mode Lecture Seule</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              Le frontend fonctionne en lecture seule stricte et ne modifie ni les bases SQLite des nœuds ni les tables de réservations.
+              Les onglets de consultation et de recommandation sont en lecture seule. L'onglet Simulateur peut déclencher de véritables ticks et injections via le Dashboard Gateway protégé, qui modifient les états des Fog.
             </p>
           </div>
         </div>

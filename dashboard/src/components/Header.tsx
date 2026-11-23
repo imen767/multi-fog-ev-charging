@@ -16,6 +16,7 @@ import { MultiFogStatus } from '../services/api';
 
 interface HeaderProps {
   systemStatus: MultiFogStatus;
+  showLocationSelector?: boolean;
   currentLocation: DriverLocation;
   onLocationChange: (loc: DriverLocation) => void;
   onRefresh: () => void;
@@ -32,6 +33,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   systemStatus,
+  showLocationSelector = true,
   currentLocation,
   onLocationChange,
   onRefresh,
@@ -87,14 +89,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <span className="text-[17px] font-black tracking-tight text-slate-900 leading-none">
-                  EV&nbsp;<span className="gradient-text">Guide</span>
+                  Multi-Fog&nbsp;<span className="gradient-text">EV</span>
                 </span>
                 <span className="px-2 py-0.5 text-[9px] font-extrabold tracking-wide rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   RÉSEAU MULTI-FOG
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium leading-tight mt-0.5">
-                Recherche Intelligente de Bornes de Recharge
+                Coopération décentralisée et recharge électrique
               </p>
             </div>
           </div>
@@ -128,8 +130,8 @@ export const Header: React.FC<HeaderProps> = ({
           {/* ── Right Controls ── */}
           <div className="flex items-center gap-2 ml-auto">
 
-            {/* Location Selector */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 gap-2 hover:border-slate-300 transition-colors">
+            {/* Le départ concerne la recommandation, pas les échanges Fog↔Fog. */}
+            {showLocationSelector && (<div className="flex items-center bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 gap-2 hover:border-slate-300 transition-colors">
               <MapPin className="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" />
               <div>
                 <label className="block text-[9px] font-bold uppercase tracking-widest text-slate-400 leading-none mb-0.5">
@@ -167,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Crosshair className={`w-3.5 h-3.5 ${gpsLoading ? 'animate-spin text-cyan-600' : ''}`} />
               </button>
-            </div>
+            </div>)}
 
             {/* Live Status Badge */}
             <div className="hidden xl:flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] font-semibold">

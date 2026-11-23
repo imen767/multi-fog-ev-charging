@@ -44,6 +44,13 @@ class StationCapacityResponse(BaseModel):
     occupied_piles: int
     out_of_service_piles: int
     available_power_kw: float
+    available_ac_piles: int
+    available_dc_piles: int
+    max_available_power_kw: float
+    max_available_ac_kw: float
+    max_available_dc_kw: float
+
+
 @router.get(
     "/station-capacities",
     response_model=list[StationCapacityResponse]

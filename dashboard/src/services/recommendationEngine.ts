@@ -84,13 +84,16 @@ function generateExplanation(
   distanceKm: number,
   occupancyPercent: number,
   occupancyLevel: OccupancyLevel,
-  waitingTimeMin: number
+  waitingTimeMin: number,
+  forecastReady: boolean
 ): { explanation: string; pros: string[]; cons: string[] } {
   const pros: string[] = [];
   const cons: string[] = [];
 
-  const isDc = station.fastCount > 0;
-  const powerDesc = isDc ? `${station.maxPowerKw} kW DC Rapide` : `${station.maxPowerKw} kW AC Standard`;
+  const isDc = station.availableDcPiles !== undefined ? station.availableDcPiles > 0 : station.fastCount > 0;
+  const powerDesc = station.maxAvailablePowerKw !== undefined
+    ? `puissance maximale d'une borne actuellement libre : ${station.maxAvailablePowerKw} kW`
+    : `${station.maxPowerKw} kW nominal`;
 
   // Pros
   if (station.availablePiles >= 4) {
@@ -109,7 +112,7 @@ function generateExplanation(
     pros.push(`Proximité géographique (${distanceKm} km, ~${travelTimeMin} min de route estimée)`);
   }
 
-  if (occupancyLevel === 'low') {
+  if (forecastReady && occupancyLevel === 'low') {
     pros.push(`Faible affluence territoriale prévue par Chronos-2 (${occupancyPercent}%)`);
   }
 
@@ -122,7 +125,7 @@ function generateExplanation(
     cons.push(`Forte sollicitation locale (${station.availablePiles} borne restante)`);
   }
 
-  if (occupancyLevel === 'high') {
+  if (forecastReady && occupancyLevel === 'high') {
     cons.push(`Affluence régionale soutenue dans ${station.fogName} (${occupancyPercent}%)`);
   }
 
@@ -139,7 +142,10 @@ function generateExplanation(
   }
 
   // Narrative explanation adhering to S1: autonomous local decision without Fog-to-Fog cooperation
-  const explanation = `Recommandée localement par ${station.fogName} (Scénario S1 — Décision autonome sans coopération) : ${station.availablePiles} bornes libres sur ${station.totalPiles} (${powerDesc}), temps de route simulé à ~${travelTimeMin} min (${distanceKm} km), et prévision Chronos-2 territoriale favorable avec ${occupancyPercent}% d'occupation attendue (${occupancyLevel} affluence).`;
+  const detailML = forecastReady
+    ? `Prévision Chronos-2 territoriale à +1 tick : ${occupancyPercent.toFixed(1)}% d'occupation attendue.`
+    : `Prévision Chronos-2 indisponible : classement dégradé sans prédiction du modèle.`;
+  const explanation = `Classement indicatif dans ${station.fogName} (Scénario S1, sans réservation) : ${station.availablePiles} bornes annoncées sur ${station.totalPiles} (${powerDesc}), distance ${distanceKm} km et trajet estimé ~${travelTimeMin} min. ${detailML}`;
 
   return { explanation, pros, cons };
 }
@@ -183,18 +189,28 @@ export function rankFogStations(
       return false;
     }
 
-    // Vehicle connector constraint
-    if (preferences.vehicleType === 'DC_FAST' && station.fastCount === 0) {
-      return false;
+    // Connecteur compatible ET libre lorsque "libres uniquement" est actif.
+    // Métadonnées du catalogue seulement dans les tests hors ligne ou si on
+    // demande explicitement les stations complètes, sans garantie de place.
+    if (preferences.vehicleType === 'DC_FAST') {
+      if (preferences.onlyAvailable && station.availableDcPiles !== undefined) {
+        if (station.availableDcPiles <= 0) return false;
+      } else if (station.fastCount === 0) return false;
     }
-    if (preferences.vehicleType === 'AC_SLOW' && station.slowCount === 0) {
-      return false;
+    if (preferences.vehicleType === 'AC_SLOW') {
+      if (preferences.onlyAvailable && station.availableAcPiles !== undefined) {
+        if (station.availableAcPiles <= 0) return false;
+      } else if (station.slowCount === 0) return false;
     }
 
-    // Minimum power constraint
-    if (station.maxPowerKw < preferences.minPowerKw) {
-      return false;
-    }
+    const maxCompatibleFree = preferences.vehicleType === 'DC_FAST'
+      ? station.maxAvailableDcKw
+      : preferences.vehicleType === 'AC_SLOW'
+        ? station.maxAvailableAcKw
+        : station.maxAvailablePowerKw;
+    const powerCeiling = preferences.onlyAvailable && maxCompatibleFree !== undefined
+      ? maxCompatibleFree : station.maxPowerKw;
+    if (powerCeiling < preferences.minPowerKw) return false;
 
     // Distance pre-filter (simulated Haversine)
     const dist = calculateDistanceKm(driverLoc.lat, driverLoc.lng, station.lat, station.lng);
@@ -210,8 +226,11 @@ export function rankFogStations(
   }
 
   // Step 2: Compute raw features using strictly this Fog's Chronos-2 forecast
-  const occupancyPercent = fogForecast ? fogForecast.expectedOccupancyPercent : 30.0;
-  const occupancyLevel = fogForecast ? fogForecast.occupancyLevel : 'low';
+  // Ne jamais présenter une valeur de remplacement comme une prévision Chronos-2.
+  // Sans ML, utiliser uniquement un indicateur observé de la station pour classer.
+  const forecastReady = fogForecast?.isLive === true;
+  const occupancyPercent = forecastReady ? fogForecast!.expectedOccupancyPercent : 0;
+  const occupancyLevel = forecastReady ? fogForecast!.occupancyLevel : 'low';
 
   const featureList = eligible.map((station) => {
     const dist = calculateDistanceKm(driverLoc.lat, driverLoc.lng, station.lat, station.lng);
@@ -245,9 +264,9 @@ export function rankFogStations(
 
   // Step 4: Compute normalized multi-criteria score
   // formula: score = W_travel * norm_travel + W_occupancy * norm_occupancy + W_wait * norm_wait
-  const totalWeight = weights.travelTime + weights.predictedOccupancy + weights.waitingTime || 1;
+  const totalWeight = weights.travelTime + (forecastReady ? weights.predictedOccupancy : 0) + weights.waitingTime || 1;
   const wTravel = weights.travelTime / totalWeight;
-  const wOcc = weights.predictedOccupancy / totalWeight;
+  const wOcc = forecastReady ? weights.predictedOccupancy / totalWeight : 0;
   const wWait = weights.waitingTime / totalWeight;
 
   const scored: Recommendation[] = featureList.map((item) => {
@@ -256,7 +275,7 @@ export function rankFogStations(
         ? (item.travelTimeMin - minTravelTime) / (maxTravelTime - minTravelTime)
         : 0;
 
-    const normOcc =
+    const normOcc = forecastReady &&
       maxOccupancy > minOccupancy
         ? (item.occupancyPercent - minOccupancy) / (maxOccupancy - minOccupancy)
         : 0;
@@ -274,7 +293,8 @@ export function rankFogStations(
       item.distanceKm,
       item.occupancyPercent,
       item.occupancyLevel,
-      item.waitingTimeMin
+      item.waitingTimeMin,
+      forecastReady
     );
 
     return {

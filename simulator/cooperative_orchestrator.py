@@ -38,6 +38,7 @@ class FogCooperativeRoundOrchestrator(DistributedRoundOrchestrator):
         all_unserved = {}
         transfers = []
         cooperation_triggered = False
+        cooperation_events = []
 
         for fog_id, url in self.fog_urls.items():
             response = self._client.post(
@@ -51,6 +52,10 @@ class FogCooperativeRoundOrchestrator(DistributedRoundOrchestrator):
             all_unserved[fog_id] = result.get("remaining_unserved", [])
 
             for item in result.get("cooperation_results", []):
+                for event in item.get("trace", []):
+                    cooperation_events.append({**event, "tick": tick,
+                                               "request_id": item.get("request_id"),
+                                               "vehicle_id": item.get("vehicle_id")})
                 if item.get("status") == "ACTIVE":
                     cooperation_triggered = True
                     transfers.append({
@@ -94,6 +99,7 @@ class FogCooperativeRoundOrchestrator(DistributedRoundOrchestrator):
             "total_unserved": sum(map(len, all_unserved.values())),
             "transfers": transfers,
             "cooperation_triggered": cooperation_triggered,
+            "cooperation_events": cooperation_events,
             "ml_predictions": ml_predictions or {},
             "fog_states": fog_states,
         }

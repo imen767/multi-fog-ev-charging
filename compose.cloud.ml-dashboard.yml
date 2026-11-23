@@ -1,0 +1,7 @@
+# Extension ML du dashboard : utiliser avec compose.cloud.yml,
+# compose.cloud.dashboard.yml et l'environnement Cloud déjà en cours.
+services:
+  dashboard-gateway:
+    environment:
+      CLOUD_ML_URL: http://cloud-sync-api:8000
+      CLOUD_ML_API_TOKEN: ${CLOUD_ML_API_TOKEN:?Configurer CLOUD_ML_API_TOKEN dans .env.cloud}

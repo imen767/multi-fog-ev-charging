@@ -1,0 +1,23 @@
+# Overlay POUR LE PC CENTRAL. LAN de confiance ou VPN prive UNIQUEMENT.
+# On conserve les ports localhost 18080 et 18082 existants et on ajoute
+# deux ports LAN distincts (18084 Sync, 18085 Chronos).
+services:
+  cloud-sync-api:
+    ports:
+      - "0.0.0.0:18084:8000"
+
+  chronos-cloud:
+    ports:
+      - "0.0.0.0:18085:8000"
+
+  cloud-orchestrator:
+    environment:
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: ${FOG_B_REMOTE_URL:?FOG_B_REMOTE_URL requis}
+      FOG_C_URL: ${FOG_C_REMOTE_URL:?FOG_C_REMOTE_URL requis}
+
+  dashboard-gateway:
+    environment:
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: ${FOG_B_REMOTE_URL:?FOG_B_REMOTE_URL requis}
+      FOG_C_URL: ${FOG_C_REMOTE_URL:?FOG_C_REMOTE_URL requis}

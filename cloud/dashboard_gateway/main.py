@@ -244,3 +244,10 @@ def simulator_inject(
         for i in range(request.count)
     ]
     return _execute_real_round({request.fog_id: vehicles})
+
+# Etape 43 : lecture sécurisée des prévisions issues de PostgreSQL.
+try:
+    from ml_routes import router as ml_router  # Conteneur Docker
+except ModuleNotFoundError:
+    from cloud.dashboard_gateway.ml_routes import router as ml_router  # pytest WSL
+app.include_router(ml_router)

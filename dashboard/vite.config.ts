@@ -12,7 +12,15 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/orchestrator/, ""),
       },
+      "/api/v1/demo/cooperation": {
+        target: "http://127.0.0.1:18110",
+        changeOrigin: true,
+      },
       "/api/v1/simulator": {
+        target: "http://127.0.0.1:18083",
+        changeOrigin: true,
+      },
+      "/api/v1/ml": {
         target: "http://127.0.0.1:18083",
         changeOrigin: true,
       },

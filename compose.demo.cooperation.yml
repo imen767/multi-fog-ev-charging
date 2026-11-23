@@ -9,6 +9,7 @@ x-demo-fog: &demo-fog
     - ./cloud/demo_cooperation/piles_catalog_demo.csv:/app/piles_catalog.csv:ro
   tmpfs:
     - /app/data:size=67108864
+  # Write/reset endpoints only exist on explicitly disposable mini-Fog.
   networks:
     - demo
   healthcheck:
@@ -23,6 +24,9 @@ services:
     <<: *demo-fog
     environment:
       FOG_ID: fog-a
+      DEMO_MODE: "1"
+      DEMO_ISOLATED_FOG: "1"
+      DEMO_RESET_TOKEN: "isolated-local-demo-46"
       FOG_ZONE: university
       FOG_DB_PATH: /app/data/fog_a.db
       FOG_A_URL: http://demo-fog-a:8000
@@ -33,6 +37,9 @@ services:
     <<: *demo-fog
     environment:
       FOG_ID: fog-b
+      DEMO_MODE: "1"
+      DEMO_ISOLATED_FOG: "1"
+      DEMO_RESET_TOKEN: "isolated-local-demo-46"
       FOG_ZONE: shopping_center
       FOG_DB_PATH: /app/data/fog_b.db
       FOG_A_URL: http://demo-fog-a:8000
@@ -43,12 +50,34 @@ services:
     <<: *demo-fog
     environment:
       FOG_ID: fog-c
+      DEMO_MODE: "1"
+      DEMO_ISOLATED_FOG: "1"
+      DEMO_RESET_TOKEN: "isolated-local-demo-46"
       FOG_ZONE: public_parking
       FOG_DB_PATH: /app/data/fog_c.db
       FOG_A_URL: http://demo-fog-a:8000
       FOG_B_URL: http://demo-fog-b:8000
       FOG_C_URL: http://demo-fog-c:8000
     ports: ["127.0.0.1:18103:8000"]
+  demo-cooperation-api:
+    build:
+      context: .
+      dockerfile: cloud/demo_cooperation/Dockerfile.visual-gateway
+    environment:
+      DEMO_MODE: "1"
+      DEMO_RESET_TOKEN: "isolated-local-demo-46"
+    networks: [demo]
+    ports: ["127.0.0.1:18110:8000"]
+    depends_on:
+      demo-fog-a: {condition: service_healthy}
+      demo-fog-b: {condition: service_healthy}
+      demo-fog-c: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
   demo-runner:
     build:
       context: .
@@ -66,4 +95,4 @@ services:
 
 networks:
   demo:
-    internal: true
+    internal: false

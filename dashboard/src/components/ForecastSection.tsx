@@ -44,39 +44,30 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
   territoriesMeta,
 }) => {
   const [selectedFogTab, setSelectedFogTab] = useState<FogId>('fog-a');
-  const [simulatedHorizon, setSimulatedHorizon] = useState<number>(1); // +1h, +2h, +3h
+  const simulatedHorizon = 1; // Chronos-2 prédit uniquement +1 tick dans cette version
 
   const fogs: FogId[] = ['fog-a', 'fog-b', 'fog-c'];
 
-  const currentHistory = historicalData[selectedFogTab] || [];
   const currentForecast = forecasts[selectedFogTab];
   const currentMeta = territoriesMeta[selectedFogTab];
-
-  const historySlice = currentHistory.slice(-14);
-  const chartTimeline = historySlice.map((pt) => ({
-    hour: pt.hour,
-    actualOccupied: Math.round(pt.busy),
+  // Les points proviennent uniquement du run PostgreSQL actif, jamais des jeux CSV de benchmark.
+  const actualValues = currentForecast?.history || [];
+  const actualTicks = currentForecast?.ticks || [];
+  const chartTimeline = actualValues.map((v, i) => ({
+    hour: `Tick ${actualTicks[i]}`,
+    actualOccupied: Math.round(v),
     predictedQ50: null as number | null,
     lowerQ10: null as number | null,
     upperQ90: null as number | null,
     isForecast: false,
   }));
-
-  if (chartTimeline.length > 0 && currentForecast) {
-    const lastHourStr = chartTimeline[chartTimeline.length - 1].hour;
-    const lastHourNum = parseInt(lastHourStr.split(':')[0], 10);
-    const nextHourNum = (lastHourNum + simulatedHorizon) % 24;
-    const nextHourStr = `${nextHourNum.toString().padStart(2, '0')}:00 (+${simulatedHorizon}h)`;
-
-    // Slight simulation factor for simulated horizon exploration
-    const horizonMultiplier = simulatedHorizon === 1 ? 1.0 : simulatedHorizon === 2 ? 1.04 : 0.96;
-
+  if (currentForecast?.isLive && actualTicks.length > 0) {
+    const nextTick = actualTicks[actualTicks.length - 1] + 1;
     chartTimeline.push({
-      hour: nextHourStr,
-      actualOccupied: null as any,
-      predictedQ50: Math.round(currentForecast.forecastBusyQ50 * horizonMultiplier),
-      lowerQ10: Math.round(currentForecast.forecastBusyQ10 * horizonMultiplier),
-      upperQ90: Math.round(currentForecast.forecastBusyQ90 * horizonMultiplier),
+      hour: `Tick ${nextTick} (prévu)`, actualOccupied: null,
+      predictedQ50: Math.round(currentForecast.forecastBusyQ50),
+      lowerQ10: Math.round(currentForecast.forecastBusyQ10),
+      upperQ90: Math.round(currentForecast.forecastBusyQ90),
       isForecast: true,
     });
   }
@@ -84,19 +75,18 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
   const crossFogComparison = fogs.map((fId) => {
     const fc = forecasts[fId];
     const cap = capacities[fId];
-    const totalP = cap?.total_piles || territoriesMeta[fId]?.total_piles || 6000;
-    const predictedBusy = Math.round(fc?.forecastBusyQ50 || 1500);
-    const saturationPercent = parseFloat(((predictedBusy / totalP) * 100).toFixed(1));
-
+    const totalP = cap?.total_piles ?? territoriesMeta[fId]?.total_piles ?? 0;
+    const ready = Boolean(fc?.isLive);
+    const predictedBusy = ready ? Math.round(fc!.forecastBusyQ50) : null;
+    const saturationPercent = ready && totalP > 0
+      ? Math.max(0, Math.min(100, Number((predictedBusy! / totalP * 100).toFixed(1)))) : null;
     return {
       name: fId.toUpperCase(),
       fullName: territoriesMeta[fId]?.name.split(' - ')[0] || fId,
       totalPiles: totalP,
       predictedOccupied: predictedBusy,
-      availableHeadroom: totalP - predictedBusy,
+      availableHeadroom: predictedBusy === null ? null : Math.max(0, totalP - predictedBusy),
       saturationPercent,
-      maeChronos: territoriesMeta[fId]?.mae_chronos || 0,
-      maeBaseline: territoriesMeta[fId]?.mae_baseline || 0,
     };
   });
 
@@ -133,10 +123,10 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
             • <strong className="text-slate-800">Métrique Globale :</strong> La série temporelle prédit le nombre cumulé de points occupés (<code className="text-cyan-700 font-mono font-bold">busy</code>) à l'échelle du territoire Fog, et non la disponibilité micro d'une borne précise.
           </div>
           <div>
-            • <strong className="text-slate-800">Données Historiques :</strong> Observations horaires réelles issues du jeu de données métropolitain UrbanEV (4 345 pas de temps par nœud).
+            • <strong className="text-slate-800">Données Historiques :</strong> Les prévisions de ce panneau utilisent les 12 derniers ticks consécutifs du run PostgreSQL courant. Les benchmarks ci-dessous sont historiques et séparés.
           </div>
           <div>
-            • <strong className="text-slate-800">Décentralisation Multi-Fog :</strong> Chaque Fog Node héberge son modèle et traite ses données localement sans centralisation massive.
+            • <strong className="text-slate-800">Implémentation actuelle :</strong> Chaque Fog garde ses décisions et SQLite ; Chronos-2 est pour l'instant appelé via l'API Cloud pour la recommandation (pas pour les réservations).
           </div>
           <div>
             • <strong className="text-slate-800">Probabilisme & Incertitude :</strong> La prévision inclut la médiane ($q50$) encadrée par l'intervalle de confiance ($q10 - q90$).
@@ -174,7 +164,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
                   ({meta?.name.split(' - ')[1] || 'Territoire'})
                 </span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] bg-white font-mono text-cyan-700 ml-1 font-bold border border-slate-200">
-                  {fc?.expectedOccupancyPercent || 25}%
+                  {fc?.isLive ? `${fc.expectedOccupancyPercent.toFixed(1)}%` : 'En attente'}
                 </span>
               </button>
             );
@@ -187,19 +177,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
             <Clock className="w-3.5 h-3.5 text-cyan-600 mr-1" />
             Horizon :
           </span>
-          {[1, 2, 3].map((h) => (
-            <button
-              key={h}
-              onClick={() => setSimulatedHorizon(h)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                simulatedHorizon === h
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              +{h} heure{h > 1 ? 's' : ''}
-            </button>
-          ))}
+          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-900 text-white">+1 tick (60 min simulées)</span>
         </div>
       </div>
 
@@ -214,7 +192,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
               </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">
-              Historique des bornes occupées et projection probabiliste Chronos-2 ($q10 - q50 - q90$)
+              Série PostgreSQL du run courant ; q10 / q50 / q90 affichés uniquement après 12 ticks consécutifs.
             </p>
           </div>
 
@@ -223,24 +201,31 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
             <div>
               <span className="text-slate-500 text-[10px] block uppercase font-bold">Borne Basse (q10)</span>
               <span className="font-mono font-bold text-slate-700">
-                {Math.round(currentForecast?.forecastBusyQ10 || 0)}
+                {currentForecast?.isLive ? Math.round(currentForecast.forecastBusyQ10) : '—'}
               </span>
             </div>
             <div className="border-l border-slate-200 pl-3">
               <span className="text-cyan-700 text-[10px] block uppercase font-bold">Médiane Attendue (q50)</span>
               <span className="font-mono font-black text-cyan-700 text-sm">
-                {Math.round(currentForecast?.forecastBusyQ50 || 0)}
+                {currentForecast?.isLive ? Math.round(currentForecast.forecastBusyQ50) : '—'}
               </span>
             </div>
             <div className="border-l border-slate-200 pl-3">
               <span className="text-slate-500 text-[10px] block uppercase font-bold">Borne Haute (q90)</span>
               <span className="font-mono font-bold text-slate-700">
-                {Math.round(currentForecast?.forecastBusyQ90 || 0)}
+                {currentForecast?.isLive ? Math.round(currentForecast.forecastBusyQ90) : '—'}
               </span>
             </div>
           </div>
         </div>
 
+        {!currentForecast?.isLive && (
+          <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900" role="status">
+            Chronos-2 indisponible pour cette simulation : {currentForecast?.historyPoints ?? 0}/12 ticks
+            consécutifs. Raison : {currentForecast?.reason ?? 'chargement'}.
+            Aucune prévision ne sera inventée depuis le CSV statique.
+          </p>
+        )}
         {/* Recharts Timeline */}
         <div className="h-80 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
@@ -319,14 +304,14 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
               </p>
             </div>
             <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Réseau Équilibré
+              Prévisions conditionnelles
             </span>
           </div>
 
           <div className="space-y-4 pt-2">
             {crossFogComparison.map((item) => {
-              const isHigh = item.saturationPercent > 65;
-              const isModerate = item.saturationPercent > 35;
+              const isHigh = item.saturationPercent !== null && item.saturationPercent > 65;
+              const isModerate = item.saturationPercent !== null && item.saturationPercent > 35;
 
               return (
                 <div key={item.name} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
@@ -345,7 +330,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
                           isHigh ? 'text-rose-600' : isModerate ? 'text-amber-600' : 'text-emerald-600'
                         }`}
                       >
-                        {item.saturationPercent}%
+                        {item.saturationPercent === null ? 'En attente' : `${item.saturationPercent}%`}
                       </strong>
                     </div>
                   </div>
@@ -356,22 +341,22 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
                       className={`h-full transition-all duration-500 ${
                         isHigh ? 'bg-rose-500' : isModerate ? 'bg-amber-500' : 'bg-emerald-500'
                       }`}
-                      style={{ width: `${item.saturationPercent}%` }}
+                      style={{ width: `${item.saturationPercent ?? 0}%` }}
                       title={`Occupation prévue : ${item.predictedOccupied} bornes`}
                     />
                     <div
                       className="h-full bg-slate-100"
-                      style={{ width: `${100 - item.saturationPercent}%` }}
+                      style={{ width: `${item.saturationPercent === null ? 100 : 100 - item.saturationPercent}%` }}
                       title={`Marge libre : ${item.availableHeadroom} bornes`}
                     />
                   </div>
 
                   <div className="flex justify-between text-[11px] text-slate-500 font-medium">
                     <span>
-                      Occupées : <strong className="text-slate-800">{item.predictedOccupied.toLocaleString()}</strong>
+                      Occupées : <strong className="text-slate-800">{item.predictedOccupied === null ? '—' : item.predictedOccupied.toLocaleString()}</strong>
                     </span>
                     <span>
-                      Marge libre : <strong className="text-emerald-600 font-extrabold">{item.availableHeadroom.toLocaleString()}</strong> bornes
+                      Marge libre : <strong className="text-emerald-600 font-extrabold">{item.availableHeadroom === null ? '—' : item.availableHeadroom.toLocaleString()}</strong> bornes
                     </span>
                     <span>
                       Capacité : <strong className="text-slate-800">{item.totalPiles.toLocaleString()}</strong>
@@ -396,7 +381,7 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              Erreur Absolue Moyenne (MAE) obtenue lors des tests sur l'architecture Multi-Fog.
+              Benchmarks historiques du jeu UrbanEV ; ils ne mesurent pas la précision de la simulation actuelle.
             </p>
 
             {/* Benchmark Table */}

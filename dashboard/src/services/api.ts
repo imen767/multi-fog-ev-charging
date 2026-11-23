@@ -13,6 +13,7 @@ import {
 } from '../types';
 
 import staticStations from '../data/stations.json';
+import { mergeLiveStationCapacities } from './stationAvailability';
 import staticTerritories from '../data/territories.json';
 import staticEvaluation from '../data/evaluation_results.json';
 import staticHistoricalOccupancy from '../data/historical_occupancy.json';
@@ -103,58 +104,46 @@ export class FogDataService {
   }
 
   /**
-   * Fetch live Chronos-2 forecast from a Fog node
+   * Prévision du run courant : Cloud PostgreSQL -> Chronos-2, via Gateway.
+   * Jamais de retour silencieux aux CSV statiques des Fog.
    */
   public static async fetchFogForecast(fogId: FogId, totalPiles: number): Promise<TerritoryForecast> {
-    const config = FOG_CONFIG[fogId];
+    const unavailable = (reason: string, historyPoints = 0, history: number[] = [], ticks: number[] = []): TerritoryForecast => ({
+      fogId,
+      forecastBusyQ10: 0, forecastBusyQ50: 0, forecastBusyQ90: 0,
+      totalPiles, expectedOccupancyPercent: 0, occupancyLevel: 'low',
+      horizonMin: 60, lastUpdated: 'Indisponible', isLive: false,
+      historyPoints, requiredHistoryPoints: 12, reason, history, ticks,
+      source: 'occupancy_history/orchestrator_settled',
+    });
     try {
-      const response = await fetch(`${config.proxyPrefix}/api/v1/forecasts`, {
-        signal: AbortSignal.timeout(3000),
+      const response = await fetch(`/api/v1/ml/forecast/${fogId}`, {
+        signal: AbortSignal.timeout(325000),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const raw = await response.json();
+      const history = Array.isArray(raw.history) ? raw.history : [];
+      const ticks = Array.isArray(raw.ticks) ? raw.ticks : [];
+      if (!raw.ready) return unavailable(raw.reason || 'insufficient_history', raw.history_points ?? 0, history, ticks);
+      if (raw.horizon_steps !== 1 || raw.step_minutes !== 60) throw new Error('Horizon incorrect');
+      const q10 = raw.forecasts?.q10?.[0];
+      const q50 = raw.forecasts?.q50?.[0];
+      const q90 = raw.forecasts?.q90?.[0];
+      if (![q10, q50, q90].every((v) => typeof v === 'number' && Number.isFinite(v))) {
+        throw new Error('Quantiles invalides');
       }
-
-      const raw: ChronosForecastRaw = await response.json();
-      const q10 = raw.forecasts.q10[0] ?? 1200;
-      const q50 = raw.forecasts.q50[0] ?? 1350;
-      const q90 = raw.forecasts.q90[0] ?? 1480;
-
-      const expectedOccupancyPercent = Math.min(100, Math.max(0, (q50 / totalPiles) * 100));
-
-      let occupancyLevel: 'low' | 'moderate' | 'high' = 'low';
-      if (expectedOccupancyPercent > 65) {
-        occupancyLevel = 'high';
-      } else if (expectedOccupancyPercent > 35) {
-        occupancyLevel = 'moderate';
-      }
-
+      const expectedOccupancyPercent = totalPiles > 0 ? Math.min(100, Math.max(0, q50 / totalPiles * 100)) : 0;
+      const occupancyLevel = expectedOccupancyPercent > 65 ? 'high' : expectedOccupancyPercent > 35 ? 'moderate' : 'low';
       return {
-        fogId,
-        forecastBusyQ10: q10,
-        forecastBusyQ50: q50,
-        forecastBusyQ90: q90,
-        totalPiles,
-        expectedOccupancyPercent: parseFloat(expectedOccupancyPercent.toFixed(1)),
-        occupancyLevel,
-        horizonMin: raw.horizon_min || 60,
-        lastUpdated: new Date().toLocaleTimeString(),
-        isLive: true,
+        fogId, forecastBusyQ10: q10, forecastBusyQ50: q50, forecastBusyQ90: q90,
+        totalPiles, expectedOccupancyPercent, occupancyLevel,
+        horizonMin: 60, lastUpdated: new Date().toLocaleTimeString(), isLive: true,
+        historyPoints: raw.history_points, requiredHistoryPoints: 12,
+        reason: 'ok', history, ticks, source: raw.source, simulationRunId: raw.simulation_run_id,
       };
-    } catch {
-      return {
-        fogId,
-        forecastBusyQ10: 0,
-        forecastBusyQ50: 0,
-        forecastBusyQ90: 0,
-        totalPiles,
-        expectedOccupancyPercent: 0,
-        occupancyLevel: 'low',
-        horizonMin: 60,
-        lastUpdated: 'Prévision indisponible',
-        isLive: false,
-      };
+    } catch (error) {
+      console.warn(`Chronos temps réel indisponible pour ${fogId}`, error);
+      return unavailable('service_unavailable');
     }
   }
 
@@ -165,8 +154,25 @@ export class FogDataService {
     capacities: Record<FogId, FogCapacity>;
     forecasts: Record<FogId, TerritoryForecast>;
     systemStatus: MultiFogStatus;
+    stations: Station[];
+    stationDataLive: Record<FogId, boolean>;
   }> {
     const fogs: FogId[] = ['fog-a', 'fog-b', 'fog-c'];
+
+    // Lancer les lectures de capacité par station en parallèle ; pas de valeur statique
+    // de remplacement en cas de panne. Une zone indisponible n'est pas recommandée.
+    const stationRequests = Promise.all(fogs.map(async (id) => {
+      try {
+        const res = await fetch(`${FOG_CONFIG[id].proxyPrefix}/api/v1/piles/station-capacities`, {
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { id, stations: mergeLiveStationCapacities(id, this.cachedStations, await res.json()), live: true };
+      } catch (error) {
+        console.warn(`Disponibilités par station indisponibles pour ${id}`, error);
+        return { id, stations: [] as Station[], live: false };
+      }
+    }));
 
     const capacityResults = await Promise.all(fogs.map((id) => this.fetchFogCapacity(id)));
 
@@ -186,12 +192,18 @@ export class FogDataService {
       'fog-c': forecastResults[2],
     };
 
+    const stationResults = await stationRequests;
+    const stationDataLive = Object.fromEntries(stationResults.map(({ id, live }) => [id, live])) as Record<FogId, boolean>;
+    const stations = stationResults.flatMap(({ stations }) => stations);
+
     const activeFogs = fogs.filter((f) => capacities[f].isOnline);
     const anyLiveForecast = fogs.some((f) => forecasts[f].isLive);
 
     return {
       capacities,
       forecasts,
+      stations,
+      stationDataLive,
       systemStatus: {
         isLive: activeFogs.length > 0,
         activeFogs,

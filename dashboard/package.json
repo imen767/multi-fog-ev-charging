@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types verify_scenario1.ts"
+    "test": "node --experimental-strip-types verify_scenario1.ts && node --experimental-strip-types verify_stage43.ts && node --experimental-strip-types verify_stage44.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -31,4 +31,3 @@
     "vite": "^5.4.11"
   }
 }
-

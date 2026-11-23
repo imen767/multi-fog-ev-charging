@@ -260,7 +260,8 @@ def settle_round(
                 "vehicle_id": vehicle["vehicle_id"],
                 "request_id": request.request_id,
                 "negotiation_status": negotiation.get("status"),
-                **completed,
+                "trace": [*negotiation.get("trace", []), *completed.get("trace", [])],
+                **{key: val for key, val in completed.items() if key != "trace"},
             }
             cooperation_results.append(entry)
             if completed["status"] == "ACTIVE":

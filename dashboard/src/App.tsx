@@ -40,8 +40,12 @@ import { DataProvenanceModal } from './components/DataProvenanceModal';
 import { Footer } from './components/Footer';
 
 export const App: React.FC = () => {
-  // Static Dataset & Benchmarks
-  const allStations = useMemo(() => FogDataService.getStations(), []);
+  // Catalogue : seulement les métadonnées géographiques. Les disponibilités
+  // viennent du snapshot SQLite en lecture seule, jamais du fichier stations.json.
+  const [allStations, setAllStations] = useState<Station[]>([]);
+  const [stationDataLive, setStationDataLive] = useState<Record<FogId, boolean>>({
+    'fog-a': false, 'fog-b': false, 'fog-c': false,
+  });
   const territoriesMeta = useMemo(() => FogDataService.getTerritoriesMeta(), []);
   const evaluationData = useMemo(() => FogDataService.getEvaluationResults(), []);
   const historicalOccupancy = useMemo(() => FogDataService.getHistoricalOccupancy(), []);
@@ -74,7 +78,7 @@ export const App: React.FC = () => {
   });
 
   // Navigation, Selection & Modals
-  const [activeTab, setActiveTab] = useState<'recommendations' | 'map' | 'forecasts' | 'simulator'>('recommendations');
+  const [activeTab, setActiveTab] = useState<'recommendations' | 'map' | 'forecasts' | 'simulator'>('simulator');
   const [selectedFog, setSelectedFog] = useState<FogId>('fog-a');
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
@@ -103,8 +107,18 @@ export const App: React.FC = () => {
       setCapacities(data.capacities);
       setForecasts(data.forecasts);
       setSystemStatus(data.systemStatus);
+      setAllStations(data.stations);
+      setStationDataLive(data.stationDataLive);
+      // Une station choisie auparavant doit refléter le dernier snapshot, ou
+      // disparaître si son Fog n'est plus accessible.
+      const refreshSelection = (current: Station | null): Station | null =>
+        current ? data.stations.find((station) => station.id === current.id && station.fogId === current.fogId) ?? null : null;
+      setSelectedStation(refreshSelection);
+      setActiveDestination(refreshSelection);
     } catch (err) {
-      console.warn('Could not fetch live multi-fog data; using cached fallback:', err);
+      console.error('Impossible de lire les états Fog : aucune disponibilité statique ne sera affichée.', err);
+      setAllStations([]);
+      setStationDataLive({ 'fog-a': false, 'fog-b': false, 'fog-c': false });
     } finally {
       setIsRefreshing(false);
     }
@@ -208,6 +222,7 @@ export const App: React.FC = () => {
       {/* ── Header ── */}
       <Header
         systemStatus={systemStatus}
+        showLocationSelector={activeTab !== 'simulator'}
         currentLocation={driverLocation}
         onLocationChange={setDriverLocation}
         onRefresh={loadFogData}
@@ -238,7 +253,7 @@ export const App: React.FC = () => {
               { id: 'recommendations', icon: Sparkles, label: 'Trouver une Borne',   badge: topPick ? 'Top 1' : undefined, activeClass: 'bg-cyan-50 text-cyan-800 border-cyan-300' },
               { id: 'map',             icon: Compass,  label: 'Carte des Bornes',     badge: undefined,                      activeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
               { id: 'forecasts',       icon: Cpu,      label: 'Prévisions IA',        badge: undefined,                      activeClass: 'bg-sky-50 text-sky-800 border-sky-300' },
-              { id: 'simulator',       icon: Activity, label: 'Simulateur Temps Réel',badge: 'Live',                         activeClass: 'bg-indigo-50 text-indigo-900 border-indigo-300' },
+              { id: 'simulator',       icon: Activity, label: 'Coopération Fog ↔ Fog',badge: 'Démo',                         activeClass: 'bg-indigo-50 text-indigo-900 border-indigo-300' },
             ] as const).map(({ id, icon: Icon, label, badge, activeClass }) => {
               const active = activeTab === id;
               return (
@@ -270,6 +285,7 @@ export const App: React.FC = () => {
           <div className="space-y-8 animate-fadeIn">
             <RecommendationSection
               selectedFog={selectedFog}
+              stationDataLive={stationDataLive[selectedFog]}
               onSelectFog={setSelectedFog}
               recommendations={recommendations}
               allFogRecommendations={allFogRecommendations}

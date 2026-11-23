@@ -17,6 +17,12 @@ export interface Station {
   fastCount: number;
   totalPiles: number;
   availablePiles: number;
+  /** Uniquement parmi les bornes actuellement libres, non réservées. */
+  availableAcPiles?: number;
+  availableDcPiles?: number;
+  maxAvailablePowerKw?: number;
+  maxAvailableAcKw?: number;
+  maxAvailableDcKw?: number;
   occupiedPiles: number;
   outOfServicePiles: number;
   maxPowerKw: number;
@@ -63,6 +69,13 @@ export interface TerritoryForecast {
   horizonMin: number;
   lastUpdated: string;
   isLive: boolean;
+  historyPoints?: number;
+  requiredHistoryPoints?: number;
+  history?: number[];
+  ticks?: number[];
+  reason?: string;
+  source?: string;
+  simulationRunId?: string;
 }
 
 export interface TerritoryMeta {

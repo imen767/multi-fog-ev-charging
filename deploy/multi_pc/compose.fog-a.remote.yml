@@ -1,0 +1,8 @@
+# Overlay POUR LE PC CENTRAL, applique sur le docker-compose.yml d'origine.
+# Ne creer ni nouveau Fog A ni nouvelle SQLite. Modifie seulement ses adresses peer.
+services:
+  fog-a:
+    environment:
+      FOG_A_URL: http://fog-a:8000
+      FOG_B_URL: ${FOG_B_REMOTE_URL:?FOG_B_REMOTE_URL requis}
+      FOG_C_URL: ${FOG_C_REMOTE_URL:?FOG_C_REMOTE_URL requis}

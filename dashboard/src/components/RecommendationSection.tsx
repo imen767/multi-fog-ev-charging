@@ -35,6 +35,7 @@ import {
 
 interface RecommendationSectionProps {
   selectedFog: FogId;
+  stationDataLive: boolean;
   onSelectFog: (fogId: FogId) => void;
   recommendations: Recommendation[];
   allFogRecommendations?: MultiFogRecommendations;
@@ -56,6 +57,7 @@ interface RecommendationSectionProps {
 
 export const RecommendationSection: React.FC<RecommendationSectionProps> = ({
   selectedFog,
+  stationDataLive,
   onSelectFog,
   recommendations,
   allFogRecommendations,
@@ -140,6 +142,16 @@ export const RecommendationSection: React.FC<RecommendationSectionProps> = ({
 
   return (
     <section className="space-y-6">
+      {!stationDataLive && (
+        <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm font-semibold">
+          Données de disponibilité par station indisponibles pour {selectedFog} : aucune station de ce Fog ne sera recommandée sur la base du catalogue statique.
+        </div>
+      )}
+      {stationDataLive && (
+        <div className="text-xs font-medium text-emerald-700">
+          Disponibilités par station : API SQLite du Fog (lecture seule). Métadonnées géographiques : catalogue.
+        </div>
+      )}
 
       {/* ── 1. Clean & Friendly Header ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -337,10 +349,10 @@ export const RecommendationSection: React.FC<RecommendationSectionProps> = ({
                   <span>Puissance Max</span>
                 </div>
                 <div className="text-3xl font-black text-amber-700 leading-none">
-                  {topPick.station.maxPowerKw} <span className="text-base font-bold text-amber-600">kW</span>
+                  {topPick.station.maxAvailablePowerKw ?? topPick.station.maxPowerKw} <span className="text-base font-bold text-amber-600">kW disponibles max.</span>
                 </div>
                 <div className="text-xs text-amber-600 font-semibold mt-1">
-                  {topPick.station.fastCount > 0 ? '⚡ Recharge Rapide DC' : 'Recharge Standard AC'}
+                  {(topPick.station.availableDcPiles ?? topPick.station.fastCount) > 0 ? '⚡ DC libre disponible' : 'Recharge AC disponible'}
                 </div>
               </div>
             </div>
@@ -507,7 +519,7 @@ export const RecommendationSection: React.FC<RecommendationSectionProps> = ({
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-cyan-50/60 border border-cyan-100 text-xs text-cyan-900">
               <ShieldCheck className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
               <div>
-                <strong>Isolation Architecturale S1 :</strong> Chaque Fog Node prend ses décisions localement à partir de sa propre base SQLite et de son modèle Chronos-2 dédié. Aucune communication inter-fog n'est déclenchée dans ce scénario.
+                <strong>Isolation S1 :</strong> chaque Fog reste maître des réservations dans SQLite. Le dashboard utilise le modèle Chronos-2 côté Cloud pour éclairer le classement ; il ne déclenche pas la coopération entre Fog.
               </div>
             </div>
 
@@ -516,20 +528,20 @@ export const RecommendationSection: React.FC<RecommendationSectionProps> = ({
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="text-slate-400 text-[10px] uppercase font-bold">Capacité Réelle</div>
                 <div className="text-base font-black text-slate-900 mt-0.5">
-                  {(currentCapacity?.total_piles || currentMeta?.total_piles || 0).toLocaleString()} bornes
+                  {currentCapacity?.isOnline ? currentCapacity.total_piles.toLocaleString() : 'Indisponible'} bornes
                 </div>
                 <div className="text-[10px] text-slate-500">
-                  ~{(currentCapacity?.available_piles || Math.floor((currentMeta?.total_piles || 0) * 0.78)).toLocaleString()} libres
+                  {currentCapacity?.isOnline ? currentCapacity.available_piles.toLocaleString() : 'Indisponible'} libres
                 </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="text-slate-400 text-[10px] uppercase font-bold">Chronos-2 Forecast</div>
                 <div className="text-base font-black text-cyan-700 mt-0.5">
-                  {currentForecast?.expectedOccupancyPercent || 25.0}%
+                  {currentForecast?.isLive ? `${currentForecast.expectedOccupancyPercent.toFixed(1)}%` : 'En attente'}
                 </div>
                 <div className="text-[10px] text-slate-500">
-                  q50: {currentForecast?.forecastBusyQ50 || 1400} (+1h)
+                  q50: {currentForecast?.isLive ? Math.round(currentForecast.forecastBusyQ50) : 'indisponible'} (+1 tick)
                 </div>
               </div>
 

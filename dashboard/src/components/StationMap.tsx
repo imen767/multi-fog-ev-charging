@@ -59,8 +59,8 @@ export const StationMap: React.FC<StationMapProps> = ({
   const displayedStations = stations.filter((station) => {
     if (fogFilter !== 'ALL' && station.fogId !== fogFilter) return false;
     if (onlyAvailable && station.availablePiles <= 0) return false;
-    if (powerFilter === 'FAST_DC' && station.fastCount === 0) return false;
-    if (powerFilter === 'SLOW_AC' && station.slowCount === 0) return false;
+    if (powerFilter === 'FAST_DC' && (onlyAvailable ? (station.availableDcPiles ?? 0) === 0 : station.fastCount === 0)) return false;
+    if (powerFilter === 'SLOW_AC' && (onlyAvailable ? (station.availableAcPiles ?? 0) === 0 : station.slowCount === 0)) return false;
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase();
       if (!station.id.toLowerCase().includes(q) && !station.name.toLowerCase().includes(q)) {

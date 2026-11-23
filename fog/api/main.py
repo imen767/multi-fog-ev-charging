@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -34,6 +35,11 @@ app.include_router(piles_router)
 app.include_router(forecast_router)
 app.include_router(simulator_router)
 app.include_router(round_router)
+
+# The destructive control route is absent on the real Fog containers.
+if os.getenv("DEMO_ISOLATED_FOG") == "1":
+    from fog.api.demo_control import router as demo_control_router
+    app.include_router(demo_control_router)
 
 
 @app.get("/health")

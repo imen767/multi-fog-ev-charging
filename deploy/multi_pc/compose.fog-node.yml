@@ -1,0 +1,44 @@
+# Un seul Fog et son agent, sur le PC proprietaire du Fog.
+# Lancer: docker compose -p fog-b-node --env-file .env.fog -f compose.fog-node.yml up -d --build
+services:
+  fog-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      FOG_ID: ${FOG_ID:?FOG_ID requis}
+      FOG_ZONE: ${FOG_ZONE:?FOG_ZONE requis}
+      FOG_DB_PATH: /app/data/${FOG_DB_FILE:?FOG_DB_FILE requis}
+      FOG_ROUND_CHECKPOINT_PATH: /app/data/.round_checkpoint.json
+      FOG_A_URL: ${FOG_A_URL:?FOG_A_URL requis}
+      FOG_B_URL: ${FOG_B_URL:?FOG_B_URL requis}
+      FOG_C_URL: ${FOG_C_URL:?FOG_C_URL requis}
+      CHRONOS_URL: ${CHRONOS_URL:?CHRONOS_URL requis}
+    ports:
+      - "0.0.0.0:${FOG_HOST_PORT:?FOG_HOST_PORT requis}:8000"
+    volumes:
+      - ./state:/app/data
+      - ./ml-service/data/${FOG_ID:?FOG_ID requis}.csv:/app/data/forecast.csv:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  sync-agent:
+    build:
+      context: ./cloud
+      dockerfile: Dockerfile.sync-agent
+    environment:
+      CLOUD_SYNC_TOKEN: ${CLOUD_SYNC_TOKEN:?CLOUD_SYNC_TOKEN requis}
+    command: ["--fog-id", "${FOG_ID}", "--fog-url", "http://fog-node:8000", "--cloud-url", "${CLOUD_SYNC_URL:?CLOUD_SYNC_URL requis}", "--interval", "15"]
+    depends_on:
+      fog-node:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
