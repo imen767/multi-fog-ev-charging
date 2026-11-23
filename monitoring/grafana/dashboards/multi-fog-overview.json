@@ -1,0 +1,562 @@
+{
+  "id": null,
+  "uid": "multi-fog-operations",
+  "title": "Multi-Fog EV — Supervision",
+  "tags": [
+    "multi-fog",
+    "ev",
+    "devops"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Fog en ligne (1 = OK)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_node_up",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Services Cloud en ligne",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_service_up",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Bornes occupées par Fog",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_piles_occupied",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Bornes disponibles par Fog",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_piles_available",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Taux d'occupation (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * multi_fog_piles_occupied / clamp_min(multi_fog_piles_total, 1)",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Puissance disponible (kW)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_available_power_kw",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Tick de chaque Fog",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_tick",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Tick orchestrateur",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_orchestrator_tick",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Historique en attente (0 = OK)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 18,
+        "y": 21,
+        "w": 6,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_history_pending",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "PostgreSQL accessible",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_up",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Durée de collecte métriques (s)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 8,
+        "y": 29,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_exporter_collection_seconds",
+          "legendFormat": "{{service}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Nombre de bornes non réservables",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 16,
+        "y": 29,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fog-prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "multi_fog_piles_non_reservable",
+          "legendFormat": "{{fog}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "annotations": {
+    "list": []
+  }
+}

@@ -1,0 +1,9 @@
+apiVersion: 1
+datasources:
+  - name: Multi-Fog Prometheus
+    uid: fog-prometheus
+    type: prometheus
+    access: proxy
+    url: http://fog-prometheus:9090
+    isDefault: true
+    editable: false

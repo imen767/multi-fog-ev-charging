@@ -1,0 +1,74 @@
+# Etape 39. A lancer SEULEMENT avec -p fog-cloud, sans les autres fichiers Compose.
+# Les conteneurs partagent fog-cloud_default; l'exporter partage aussi le LAN Docker des Fog.
+services:
+  fog-metrics-exporter:
+    build:
+      context: .
+      dockerfile: monitoring/exporter/Dockerfile
+    networks:
+      - default
+      - fog_network
+    environment:
+      FOG_A_URL: ${FOG_A_MONITOR_URL:-http://fog-a:8000}
+      FOG_B_URL: ${FOG_B_MONITOR_URL:-http://fog-b:8000}
+      FOG_C_URL: ${FOG_C_MONITOR_URL:-http://fog-c:8000}
+      ORCHESTRATOR_URL: http://cloud-orchestrator:8000
+      CLOUD_SYNC_URL: http://cloud-sync-api:8000
+      CHRONOS_URL: http://chronos-cloud:8000
+      DASHBOARD_GATEWAY_URL: http://dashboard-gateway:8000
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  fog-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    environment:
+      DATA_SOURCE_URI: postgres-cloud:5432/fog_cloud?sslmode=disable
+      DATA_SOURCE_USER: fog_admin
+      DATA_SOURCE_PASS: ${CLOUD_DB_PASSWORD:?Mot de passe PostgreSQL absent de .env.cloud}
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  fog-prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - fog-prometheus-data:/prometheus
+    ports:
+      - '127.0.0.1:19090:9090'
+    restart: unless-stopped
+
+  fog-grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Definir GRAFANA_ADMIN_PASSWORD dans .env.cloud}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - fog-grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - '127.0.0.1:13000:3000'
+    restart: unless-stopped
+
+volumes:
+  fog-prometheus-data:
+  fog-grafana-data:
+
+networks:
+  fog_network:
+    external: true
+    name: ${FOG_NETWORK_NAME:?Definir FOG_NETWORK_NAME dans .env.cloud}

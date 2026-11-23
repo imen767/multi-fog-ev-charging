@@ -1,0 +1,4 @@
+**
+!monitoring/
+!monitoring/exporter/
+!monitoring/exporter/main.py

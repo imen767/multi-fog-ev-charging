@@ -1,0 +1,31 @@
+groups:
+  - name: multi-fog-alerts
+    rules:
+      - alert: FogUnavailable
+        expr: multi_fog_node_up == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Fog {{ $labels.fog }} unavailable for 1 minute'
+      - alert: CloudServiceUnavailable
+        expr: multi_fog_service_up == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Cloud service {{ $labels.service }} unavailable for 1 minute'
+      - alert: RoundHistoryPending
+        expr: multi_fog_history_pending == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Round history was not persisted to PostgreSQL'
+      - alert: PostgreSQLUnavailable
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'PostgreSQL exporter reports database not reachable'
